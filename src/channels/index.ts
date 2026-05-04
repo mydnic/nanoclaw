@@ -8,5 +8,4 @@
 
 import './cli.js';
 
-// telegram — run /add-telegram to install the v2 Chat SDK channel
-// import './telegram.js';
+import './telegram.js';
