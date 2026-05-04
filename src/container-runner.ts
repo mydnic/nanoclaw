@@ -123,7 +123,7 @@ function buildVolumeMounts(
     group.folder,
     '.claude',
   );
-  fs.mkdirSync(groupSessionsDir, { recursive: true });
+  fs.mkdirSync(groupSessionsDir, { recursive: true, mode: 0o777 });
   const settingsFile = path.join(groupSessionsDir, 'settings.json');
   if (!fs.existsSync(settingsFile)) {
     fs.writeFileSync(
@@ -165,12 +165,22 @@ function buildVolumeMounts(
     readonly: false,
   });
 
+  // Mount host .netrc for git access to private GitHub repos (read-only)
+  const netrcPath = path.join(process.env.HOME || '/root', '.netrc');
+  if (fs.existsSync(netrcPath)) {
+    mounts.push({
+      hostPath: netrcPath,
+      containerPath: '/home/node/.netrc',
+      readonly: true,
+    });
+  }
+
   // Per-group IPC namespace: each group gets its own IPC directory
   // This prevents cross-group privilege escalation via IPC
   const groupIpcDir = resolveGroupIpcPath(group.folder);
-  fs.mkdirSync(path.join(groupIpcDir, 'messages'), { recursive: true });
-  fs.mkdirSync(path.join(groupIpcDir, 'tasks'), { recursive: true });
-  fs.mkdirSync(path.join(groupIpcDir, 'input'), { recursive: true });
+  fs.mkdirSync(path.join(groupIpcDir, 'messages'), { recursive: true, mode: 0o777 });
+  fs.mkdirSync(path.join(groupIpcDir, 'tasks'), { recursive: true, mode: 0o777 });
+  fs.mkdirSync(path.join(groupIpcDir, 'input'), { recursive: true, mode: 0o777 });
   mounts.push({
     hostPath: groupIpcDir,
     containerPath: '/workspace/ipc',
@@ -283,7 +293,7 @@ export async function runContainerAgent(
   const startTime = Date.now();
 
   const groupDir = resolveGroupFolderPath(group.folder);
-  fs.mkdirSync(groupDir, { recursive: true });
+  fs.mkdirSync(groupDir, { recursive: true, mode: 0o777 });
 
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
@@ -322,7 +332,7 @@ export async function runContainerAgent(
   );
 
   const logsDir = path.join(groupDir, 'logs');
-  fs.mkdirSync(logsDir, { recursive: true });
+  fs.mkdirSync(logsDir, { recursive: true, mode: 0o777 });
 
   return new Promise((resolve) => {
     const container = spawn(CONTAINER_RUNTIME_BIN, containerArgs, {

@@ -157,7 +157,7 @@ function registerGroup(jid: string, group: RegisteredGroup): void {
   setRegisteredGroup(jid, group);
 
   // Create group folder
-  fs.mkdirSync(path.join(groupDir, 'logs'), { recursive: true });
+  fs.mkdirSync(path.join(groupDir, 'logs'), { recursive: true, mode: 0o777 });
 
   // Copy CLAUDE.md template into the new group folder so agents have
   // identity and instructions from the first run.  (Fixes #1391)
