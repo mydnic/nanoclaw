@@ -265,6 +265,18 @@ function buildMounts(
   const sessDir = sessionDir(agentGroup.id, session.id);
   const groupDir = path.resolve(GROUPS_DIR, agentGroup.folder);
 
+  // When the host runs as root, files it creates are root-owned (0644/0755).
+  // The container runs as the node user (uid 1000), so it can't write to those
+  // paths. Fix: make the writable session paths world-accessible before each
+  // spawn. This is a no-op on non-root hosts where uid matches.
+  const hostUidCheck = process.getuid?.();
+  if (hostUidCheck === 0) {
+    const outboundDb = path.join(sessDir, 'outbound.db');
+    if (fs.existsSync(outboundDb)) fs.chmodSync(outboundDb, 0o666);
+    fs.chmodSync(sessDir, 0o777);
+    fs.chmodSync(claudeDir, 0o777);
+  }
+
   // Session folder at /workspace (contains inbound.db, outbound.db, outbox/, .claude/)
   mounts.push({ hostPath: sessDir, containerPath: '/workspace', readonly: false });
 
@@ -488,7 +500,12 @@ async function buildContainerArgs(
   // Host gateway
   args.push(...hostGatewayArgs());
 
-  // User mapping
+  // User mapping — match container user to host uid so mounts are writable.
+  // When the host runs as root (uid 0): the Dockerfile's USER node (uid 1000)
+  // would make the container unable to write to root-owned session files.
+  // Fix: chmod the writable session paths to o+rwx/o+rw before each spawn so
+  // the node user inside the container can write heartbeats and the outbound DB.
+  // This is done in buildMounts (which runs before this) — see ensureWritableForNode.
   const hostUid = process.getuid?.();
   const hostGid = process.getgid?.();
   if (hostUid != null && hostUid !== 0 && hostUid !== 1000) {
